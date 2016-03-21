@@ -15,6 +15,8 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+
 public class MainActivity extends AppCompatActivity {
 
     private Button mTrueButton;
@@ -24,8 +26,12 @@ public class MainActivity extends AppCompatActivity {
     private Button mCheatButton;
     private TextView mTextView;
     private int mCurrentIndex = 0;
+    private boolean mIsCheater; //保存CheatActivity回传的值,然后覆盖onActivityResult(...) 方法获取它
     private static final String TAG = "QuizActivity";
     private static final String KEY_INDEX = "index";
+    private static final String KEY_INDEX_CHEAT = "index";
+    private ArrayList mCheatIndex = new ArrayList();
+
 
     private TrueFalse[] mQuestionBank = new TrueFalse[] {
         new TrueFalse(R.string.question_africa, false),
@@ -35,10 +41,21 @@ public class MainActivity extends AppCompatActivity {
     };
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data){
+        if (data == null){
+            return;
+        }else{
+            mIsCheater = data.getBooleanExtra(CheatActivity.EXTRA_ANSWER_SHOWN, false);// (EXTRA的名字, 默认值在无法获得有效值使用)
+        }
+    }
+
+
+    @Override
     public void onSaveInstanceState(Bundle savedInstanceState){
         super.onSaveInstanceState(savedInstanceState);
-        Log.i(TAG,"onSaveInstanceState");
+        Log.i(TAG, "onSaveInstanceState");
         savedInstanceState.putInt(KEY_INDEX, mCurrentIndex);
+        savedInstanceState.putBoolean(KEY_INDEX_CHEAT, mIsCheater);
     }
 
     private void updateQuestion() {
@@ -52,10 +69,18 @@ public class MainActivity extends AppCompatActivity {
 
         int messageResId = 0;
 
-        if (userPressedTrue == answerIsTrue) {
-            messageResId = R.string.correct_toast;
+        if(mIsCheater) {
+            messageResId = R.string.judgment;
         }else {
-            messageResId = R.string.incorrect_toast;
+            if (mCheatIndex.contains(mCurrentIndex)){
+                messageResId = R.string.judgment;
+            } else {
+                if (userPressedTrue == answerIsTrue) {
+                    messageResId = R.string.correct_toast;
+                }else {
+                    messageResId = R.string.incorrect_toast;
+                }
+            }
         }
 
         Toast.makeText(this,messageResId,Toast.LENGTH_SHORT).show();
@@ -77,6 +102,7 @@ public class MainActivity extends AppCompatActivity {
         });
         if (savedInstanceState != null){
             mCurrentIndex = savedInstanceState.getInt(KEY_INDEX);
+            mIsCheater = savedInstanceState.getBoolean(KEY_INDEX_CHEAT);
         }
         mTextView = (TextView)findViewById(R.id.question_text_view);
         mTrueButton = (Button)findViewById(R.id.true_button);
@@ -111,6 +137,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Log.d(TAG,"Bnext: " +mCurrentIndex);
                 mCurrentIndex = (mCurrentIndex + 1) % mQuestionBank.length;
+                mIsCheater = false;
                 updateQuestion();
                 Log.d(TAG, "next: " + mCurrentIndex);
             }
@@ -125,9 +152,11 @@ public class MainActivity extends AppCompatActivity {
                     updateQuestion();
                 } else {
                 mCurrentIndex = (mCurrentIndex - 1) % mQuestionBank.length;
+                    mIsCheater = false;
                 updateQuestion();
                 Log.d(TAG,"previous: " +mCurrentIndex);
                 }
+
             }
         });
 
@@ -135,7 +164,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 Intent i = new Intent(MainActivity.this, CheatActivity.class);
-                startActivity(i);
+                boolean answerIstrue = mQuestionBank[mCurrentIndex].ismTrueQuestion();
+                mCheatIndex.add(mCurrentIndex);
+                i.putExtra(CheatActivity.EXTRA_ANSWER_IS_TRUE, answerIstrue);
+                startActivityForResult(i,0);
             }
         });
         updateQuestion();
